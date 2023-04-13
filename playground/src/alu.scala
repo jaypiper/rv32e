@@ -2,7 +2,8 @@ package alu
 import chisel3._
 import chisel3.util._
 import io._
-import params._
+import params.common._
+import params.decode_config._
 
 class ALUIO extends Bundle{
     val alu_op  = Input(UInt(ALUOP_WIDTH.W))
@@ -13,8 +14,8 @@ class ALUIO extends Bundle{
 
 class ALU extends Module{
     val io = IO(new ALUIO)
-    val alu_val = MuxLookup(io.alu_op, 0.U(DATA_WIDTH.W), Seq(
-        alu_NOP     -> (0.U(DATA_WIDTH.W)),
+    val alu_val = MuxLookup(io.alu_op, 0.U(REG_WIDTH.W), Seq(
+        alu_NOP     -> (0.U(REG_WIDTH.W)),
         alu_MV1     -> (io.val1),
         alu_MV2     -> (io.val2),
         alu_ADD     -> (io.val1 + io.val2), 

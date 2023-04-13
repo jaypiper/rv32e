@@ -1,4 +1,9 @@
 package io
+import chisel3._
+import chisel3.util._
+import params.common._
+import params.decode_config._
+
 class AXIIO extends Bundle{
   val awready = Input(Bool())
   val awvalid = Output(Bool())
@@ -80,27 +85,28 @@ class SimpleBus extends Bundle {
   val wdata = Output(UInt(REG_WIDTH.W))
   val wmask = Output(UInt(4.W))
   val wen = Output(Bool())
-  val valid = Input(Bool())
-  val respValid = Output(Bool())
+  val valid = Output(Bool())
+  val respValid = Input(Bool())
 }
 
 class IF2ID extends Bundle {
   val inst = Output(UInt(INST_WIDTH.W))
   val pc = Output(UInt(REG_WIDTH.W))
+  val valid = Output(Bool())
   def init() = this := 0.U.asTypeOf(this)
 }
 
 class ID2EX extends Bundle {
-  val pc = Output(UInt(REG_WIDTH.W))
   val inst = Output(UInt(INST_WIDTH.W))
   val ctrl = Output(new CtrlEx)
-  val rs1_d = Output(REG_WIDTH.W)
-  val rs2_d = Output(REG_WIDTH.W)
-  val dst_id = Output(REG_NUM_WIDTH.W)
-  val dst_d = Output(REG_WIDTH.W)
-  val csr_id = Output(UInt(CSR_WIDTH.W))
+  val rs1_d = Output(UInt(REG_WIDTH.W))
+  val rs2_d = Output(UInt(REG_WIDTH.W))
+  val dst_id = Output(UInt(REG_NUM_WIDTH.W))
+  val dst_d = Output(UInt(REG_WIDTH.W))
+  val csr_id = Output(UInt(CSR_NUM_WIDTH.W))
   val valid = Output(Bool())
   val jmpType = Output(UInt(2.W))
+  val pc = Output(UInt(REG_WIDTH.W))
 
   def init() = this := 0.U.asTypeOf(this)
 }
@@ -136,12 +142,12 @@ class MEM2WB extends Bundle {
 }
 
 class ReadCSR extends Bundle {
-  val id = Input(UInt(CSR_WIDTH.W))
+  val id = Input(UInt(CSR_NUM_WIDTH.W))
   val data = Output(UInt(REG_WIDTH.W))
 }
 
 class WriteCSR extends Bundle {
-  val id = Input(UInt(CSR_WIDTH.W))
+  val id = Input(UInt(CSR_NUM_WIDTH.W))
   val data = Input(UInt(REG_WIDTH.W))
   val en = Input(Bool())
 }

@@ -13,7 +13,6 @@ object playground extends ScalaModule with ScalafmtModule { m =>
     "-deprecation",
     "-feature",
     "-Xcheckinit",
-    "-P:chiselplugin:genBundleElements"
   )
   override def ivyDeps = Agg(
     ivy"edu.berkeley.cs::chisel3:3.6.0-RC2",
