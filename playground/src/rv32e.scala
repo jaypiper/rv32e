@@ -205,7 +205,6 @@ class Csrs extends Module {
   }.otherwise{
 
   }
-
 }
 
 class Fetch extends Module {
@@ -287,13 +286,16 @@ class Decode extends Module {
   io.id2ex.rs1_d := PriorityMux(Seq(
     (rs1_imm, Cat(Fill(REG_WIDTH-5, io.rrs1.id(4)), io.rrs1.id)),
     (dType === UType, io.if2id.pc),
+    (dType === JType, io.if2id.pc + 4.U),
     (true.B, io.rrs1.data)))
   io.id2ex.rs2_d := PriorityMux(Seq(
     (is_csr, io.rcsr.data),
-    (dType === UType, imm.asUInt),
+    (dType === UType || dType === IType, imm.asUInt),
     (true.B, io.rrs2.data)))
   io.id2ex.dst_id := io.if2id.inst(11, 7)
-  io.id2ex.dst_d := (io.if2id.pc.asSInt + imm).asUInt
+  io.id2ex.dst_d := PriorityMux(Seq(
+    (dType === IType, (io.rrs1.data.asSInt + imm).asUInt & (~1.U(REG_WIDTH.W))),
+    (true.B, (io.if2id.pc.asSInt + imm).asUInt)))
   io.id2ex.csr_id := io.if2id.inst(31, 20)
   io.id2ex.valid := io.if2id.valid && (instType(2) === mode_NOP)
   io.id2ex.jmpType := instType(4)
@@ -375,7 +377,7 @@ class Memory extends Module {
   val curAddr = Mux(state === sIdle, io.id2mem.addr, addr_r)
   val memFinish = ((io.id2mem.valid && (state === sIdle)) || (state === sWaitMem)) && io.memIO.respValid
 
-  io.memIO.addr := io.id2mem.addr & (~0x3.U)
+  io.memIO.addr := io.id2mem.addr & (~0x3.U(REG_WIDTH.W))
   io.memIO.wdata := io.id2mem.data
   io.memIO.valid := io.id2mem.valid
   io.memIO.wen :=  io.id2mem.memMode(3)

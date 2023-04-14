@@ -136,7 +136,7 @@ trait MemMode {
     MuxLookup(width, 0.U, Seq( 
             0.U -> 1.U,
             1.U -> 3.U,
-            2.U -> 7.U
+            2.U -> 0xf.U
         ))
   }
 }
@@ -339,9 +339,9 @@ object decode_config extends DeType with ALUOP with BrType with Insts with MemMo
                             // decode aluop     ram-mode|write-reg|跳转信号
     val decodeDefault = List(INVALID, alu_NOP, mode_NOP, false.B, NO_JMP)
     val decodeTable = Array(   
-        LUI    -> List(UType, alu_MV1,  mode_NOP, true.B,   NO_JMP),
+        LUI    -> List(UType, alu_MV2,  mode_NOP, true.B,   NO_JMP),
         AUIPC  -> List(UType, alu_ADD,  mode_NOP, true.B,   NO_JMP),
-        JAL    -> List(JType, alu_MV2,  mode_NOP, true.B,   JMP_UNCOND),
+        JAL    -> List(JType, alu_MV1,  mode_NOP, true.B,   JMP_UNCOND),
         JALR   -> List(IType, alu_MV2,  mode_NOP, true.B,   JMP_UNCOND),
         BEQ    -> List(BType, alu_NOP,  mode_NOP, false.B,  JMP_COND),
         BNE    -> List(BType, alu_NOP,  mode_NOP, false.B,  JMP_COND),

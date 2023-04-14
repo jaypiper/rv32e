@@ -14,10 +14,12 @@ class simMem extends Module {
   val mem_rdata = Cat((0 until 4).reverse.map(i => ram((io.memIO.addr + i.U) & 0xfffffff.U)))
   io.instIO.respValid := io.instIO.valid
   io.memIO.respValid := io.memIO.valid
-  when(io.memIO.wen && io.instIO.valid) {
+  when(io.memIO.addr(31) && io.memIO.wen && io.memIO.valid) {
     for(i <- 0 until 4) {
       ram(io.memIO.addr + i.U) := Mux(io.memIO.wmask(i) === 1.U, io.memIO.wdata(8*i+7, 8*i), ram(io.memIO.addr + i.U))
     }
+  } .elsewhen(io.memIO.valid && !io.memIO.addr(31)) {
+    printf("invalid addr 0x%x\n", io.memIO.addr);
   }
   io.instIO.rdata := inst_rdata
   io.memIO.rdata := mem_rdata
