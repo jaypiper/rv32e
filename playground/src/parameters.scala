@@ -10,7 +10,7 @@ object common {
   val ADDR_WIDTH = 32
   val INST_WIDTH = 32
   val CSR_NUM_WIDTH = 12
-  val PC_START = "h30000000".U(ADDR_WIDTH.W)
+  val PC_START = "h80000000".U(ADDR_WIDTH.W)
 }
 
 trait Insts{
