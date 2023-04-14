@@ -218,7 +218,12 @@ class Fetch extends Module {
   val pc = RegInit(PC_START)
   val sIdle :: sWait :: Nil = Enum(2)
   val state = RegInit(sIdle)
-  val prevFinish = RegNext(io.instFinish)
+  val prevFinish = RegInit(true.B)
+  when(io.instFinish) {
+    prevFinish := true.B
+  } .elsewhen(io.if2id.valid) {
+    prevFinish := false.B
+  }
 
   io.simpleBus.addr := pc
   io.simpleBus.wdata := 0.U
@@ -279,17 +284,23 @@ class Decode extends Module {
   io.id2ex.ctrl.wRegEn := (instType(3) === true.B) && (instType(2) === mode_NOP)
   io.id2ex.ctrl.wCsrEn := is_csr
   io.id2ex.ctrl.brType := io.if2id.inst(14,12)
-  io.id2ex.rs1_d := Mux(rs1_imm, Cat(Fill(REG_WIDTH-5, io.rrs1.id(4)), io.rrs1.id), io.rrs1.data)
-  io.id2ex.rs2_d := Mux(is_csr, io.rcsr.data, io.rrs2.data)
+  io.id2ex.rs1_d := PriorityMux(Seq(
+    (rs1_imm, Cat(Fill(REG_WIDTH-5, io.rrs1.id(4)), io.rrs1.id)),
+    (dType === UType, io.if2id.pc),
+    (true.B, io.rrs1.data)))
+  io.id2ex.rs2_d := PriorityMux(Seq(
+    (is_csr, io.rcsr.data),
+    (dType === UType, imm.asUInt),
+    (true.B, io.rrs2.data)))
   io.id2ex.dst_id := io.if2id.inst(11, 7)
   io.id2ex.dst_d := (io.if2id.pc.asSInt + imm).asUInt
   io.id2ex.csr_id := io.if2id.inst(31, 20)
-  io.id2ex.valid := io.if2id.valid && (instType(2) =/= mode_NOP)
+  io.id2ex.valid := io.if2id.valid && (instType(2) === mode_NOP)
   io.id2ex.jmpType := instType(4)
   io.id2ex.pc := io.if2id.pc
 
   io.id2mem.inst := io.if2id.inst
-  io.id2mem.valid := io.if2id.valid && (instType(2) === mode_NOP)
+  io.id2mem.valid := io.if2id.valid && (instType(2) =/= mode_NOP)
   io.id2mem.memMode := instType(2)
   io.id2mem.addr := (io.rrs1.data.asSInt + imm).asUInt
   io.id2mem.data := io.rrs2.data
