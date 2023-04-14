@@ -8,7 +8,7 @@ genvar i;
 generate
     for(i = 0; i < 32; i = i+1) begin
         always @(posedge clock) begin
-            update_reg(i, regs_data[i*64+63:i*64]);
+            update_reg(i, regs_data[i*32+31:i*32]);
         end
     end
 endgenerate

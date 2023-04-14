@@ -398,6 +398,9 @@ class WriteBack extends Module {
     val wcsr = Flipped(new WriteCSR)
     val nextPC = Output(UInt(ADDR_WIDTH.W))
   })
+  val prevFinish = RegInit(false.B)
+  prevFinish := io.instFinish
+  val prevPC = RegNext(Mux(io.ex2wb.valid, io.ex2wb.pc, io.mem2wb.pc))
 
   io.instFinish := io.ex2wb.valid || io.mem2wb.valid
   io.wreg.id := Mux(io.ex2wb.valid, io.ex2wb.wreg.id, io.mem2wb.wreg.id)
@@ -410,8 +413,8 @@ class WriteBack extends Module {
   io.nextPC := Mux(io.ex2wb.valid, io.ex2wb.nextPC, io.mem2wb.nextPC)
 
   val updateInst = Module(new UpdateInst)
-  updateInst.io.valid := io.ex2wb.valid || io.mem2wb.valid
-  updateInst.io.pc := Mux(io.ex2wb.valid, io.ex2wb.pc, io.mem2wb.pc)
+  updateInst.io.valid := prevFinish
+  updateInst.io.pc := prevPC
   updateInst.io.inst := 0.U
   updateInst.io.clock := clock
 }
