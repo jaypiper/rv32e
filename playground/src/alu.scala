@@ -28,7 +28,15 @@ class ALU extends Module{
         alu_SUB     -> (io.val1 - io.val2),
         alu_SLT     -> Mux(io.val1.asSInt < io.val2.asSInt, 1.U, 0.U),
         alu_SLTU    -> Mux(io.val1 < io.val2, 1.U, 0.U),
-        alu_NAND    -> ((~io.val1) & io.val2)
+        alu_NAND    -> ((~io.val1) & io.val2),
+        alu_MUL     -> (io.val1 * io.val2)(31, 0),
+        alu_MULH    -> ((io.val1.asSInt * io.val2.asSInt)(63,32)).asUInt,
+        alu_MULHU   -> ((io.val1 * io.val2)(63, 31)),
+        alu_MULHSU  -> (io.val1.asSInt * io.val2)(63, 32).asSInt.asUInt,
+        alu_DIV     -> (io.val1.asSInt / io.val2.asSInt).asUInt,
+        alu_DIVU    -> (io.val1 / io.val2),
+        alu_REM     -> (io.val1.asSInt % io.val2.asSInt).asUInt,
+        alu_REMU    -> (io.val1 % io.val2)
     ))
     io.out := alu_val
   

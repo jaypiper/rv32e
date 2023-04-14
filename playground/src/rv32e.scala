@@ -290,6 +290,7 @@ class Decode extends Module {
     (true.B, io.rrs1.data)))
   io.id2ex.rs2_d := PriorityMux(Seq(
     (is_csr, io.rcsr.data),
+    (dType === IType && instType(4) === JMP_UNCOND, io.if2id.pc + 4.U),
     (dType === UType || dType === IType, imm.asUInt),
     (true.B, io.rrs2.data)))
   io.id2ex.dst_id := io.if2id.inst(11, 7)
@@ -381,10 +382,10 @@ class Memory extends Module {
   val memFinish = ((io.id2mem.valid && (state === sIdle)) || (state === sWaitMem)) && io.memIO.respValid
 
   io.memIO.addr := io.id2mem.addr & (~0x3.U(REG_WIDTH.W))
-  io.memIO.wdata := io.id2mem.data
+  io.memIO.wdata := io.id2mem.data << Cat(io.id2mem.addr(1, 0), 0.U(3.W))
   io.memIO.valid := io.id2mem.valid
   io.memIO.wen :=  io.id2mem.memMode(3)
-  io.memIO.wmask := mask_by_width(io.id2mem.memMode(1,0)) << io.memIO.addr(1, 0)
+  io.memIO.wmask := mask_by_width(io.id2mem.memMode(1,0)) << io.id2mem.addr(1, 0)
 
   io.mem2wb.valid := memFinish
   io.mem2wb.wreg.id := Mux(state === sIdle, io.id2mem.dst_id, id_r)
