@@ -7,6 +7,25 @@ import params.common._
 import params.decode_config._
 import params.csr_config._
 
+class UpdateRegs extends BlackBox with HasBlackBoxPath{
+  val io = IO(new Bundle{
+      val regs_data   = Input(UInt((32*REG_WIDTH).W))
+      val clock       = Input(Clock())
+
+  })
+  addPath("playground/src/UpdateRegs.v")
+}
+
+class UpdateInst extends BlackBox with HasBlackBoxPath{
+    val io = IO(new Bundle{
+        val clock   = Input(Clock())
+        val valid   = Input(Bool())
+        val pc      = Input(UInt(ADDR_WIDTH.W))
+        val inst    = Input(UInt(INST_WIDTH.W))
+    })
+    addPath("playground/src/UpdateInst.v")
+}
+
 class Regs extends Module {
   val io = IO(new Bundle{
     val rs1 = new ReadReg
@@ -19,6 +38,9 @@ class Regs extends Module {
   when(io.dst.en && io.dst.id =/= 0.U) {
     regs(io.dst.id) := io.dst.data
   }
+  val updateRegs = Module(new UpdateRegs)
+  updateRegs.io.regs_data := regs.asUInt
+  updateRegs.io.clock := clock
 }
 
 class Csrs extends Module {
@@ -185,7 +207,6 @@ class Csrs extends Module {
   }
 
 }
-
 
 class Fetch extends Module {
   val io = IO(new Bundle {
@@ -376,6 +397,12 @@ class WriteBack extends Module {
   io.wcsr.en := io.ex2wb.wcsr.en && io.ex2wb.valid
 
   io.nextPC := Mux(io.ex2wb.valid, io.ex2wb.nextPC, io.mem2wb.nextPC)
+
+  val updateInst = Module(new UpdateInst)
+  updateInst.io.valid := io.ex2wb.valid || io.mem2wb.valid
+  updateInst.io.pc := Mux(io.ex2wb.valid, io.ex2wb.pc, io.mem2wb.pc)
+  updateInst.io.inst := 0.U
+  updateInst.io.clock := clock
 }
 
 class rv32e extends Module {
