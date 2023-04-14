@@ -124,6 +124,7 @@ class ID2MEM extends Bundle {
 
 class EX2WB extends Bundle {
   val pc = Output(UInt(REG_WIDTH.W))
+  val inst = Output(UInt(INST_WIDTH.W))
   val nextPC = Output(UInt(REG_WIDTH.W))
   val is_jmp = Output(Bool())
   val wreg = Flipped(new WriteReg)
@@ -135,6 +136,7 @@ class EX2WB extends Bundle {
 
 class MEM2WB extends Bundle {
   val pc = Output(UInt(REG_WIDTH.W))
+  val inst = Output(UInt(INST_WIDTH.W))
   val nextPC = Output(UInt(REG_WIDTH.W))
   val wreg = Flipped(new WriteReg)
   val valid = Output(Bool())

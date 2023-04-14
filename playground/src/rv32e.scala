@@ -329,6 +329,7 @@ class Execute extends Module {
   val is_jmp = io.id2ex.jmpType === JMP_UNCOND || (io.id2ex.jmpType === JMP_COND && balu.io.is_jmp)
   val nextPC = Mux(is_jmp, io.id2ex.dst_d, io.id2ex.pc + 4.U)
   io.ex2wb.pc := io.id2ex.pc
+  io.ex2wb.inst := io.id2ex.inst
   io.ex2wb.nextPC := nextPC
   io.ex2wb.is_jmp := is_jmp
   io.ex2wb.wreg.id := io.id2ex.dst_id
@@ -354,6 +355,7 @@ class Memory extends Module {
   val mode_r = RegInit(0.U(5.W))
   val addr_r = RegInit(0.U(ADDR_WIDTH.W))
   val pc_r = RegInit(0.U(ADDR_WIDTH.W))
+  val inst_r = RegInit(0.U(INST_WIDTH.W))
   switch(state) {
     is(sIdle) {
       when(io.memIO.valid && !io.memIO.respValid) {
@@ -363,6 +365,7 @@ class Memory extends Module {
         addr_r := io.id2mem.addr
         valid_r := true.B
         pc_r := io.id2mem.pc
+        inst_r := io.id2mem.inst
       }
     }
     is(sWaitMem) {
@@ -388,6 +391,7 @@ class Memory extends Module {
   io.mem2wb.wreg.data := rdata_by_mode(curMode, io.memIO.rdata >> Cat(curAddr(1,0), 0.U(3.W)))
   io.mem2wb.wreg.en := Mux(state === sIdle, io.id2mem.memMode(2), mode_r(2))
   io.mem2wb.pc := Mux(state === sIdle, io.id2mem.pc, pc_r)
+  io.mem2wb.inst := Mux(state === sIdle, io.id2mem.inst, inst_r)
   io.mem2wb.nextPC := io.mem2wb.pc + 4.U
  }
 
@@ -403,6 +407,7 @@ class WriteBack extends Module {
   val prevFinish = RegInit(false.B)
   prevFinish := io.instFinish
   val prevPC = RegNext(Mux(io.ex2wb.valid, io.ex2wb.pc, io.mem2wb.pc))
+  val prevInst = RegNext(Mux(io.ex2wb.valid, io.ex2wb.inst, io.mem2wb.inst))
 
   io.instFinish := io.ex2wb.valid || io.mem2wb.valid
   io.wreg.id := Mux(io.ex2wb.valid, io.ex2wb.wreg.id, io.mem2wb.wreg.id)
@@ -417,7 +422,7 @@ class WriteBack extends Module {
   val updateInst = Module(new UpdateInst)
   updateInst.io.valid := prevFinish
   updateInst.io.pc := prevPC
-  updateInst.io.inst := 0.U
+  updateInst.io.inst := prevInst
   updateInst.io.clock := clock
 }
 

@@ -226,7 +226,7 @@ void dut_step(uint32_t n){
         // print_info(NULL);
         state_buf[inst_p] = state;
         inst_p = (inst_p + 1) % 4;
-        if(state.valid && state.inst == 0x6b){
+        if(state.valid && state.inst == 0x00100073){
             dut_end = 1;
             break;
         }
@@ -253,7 +253,7 @@ void difftest_step(uint32_t n){
         difftest_regcpy(&ref_r, 1);
         // if(tmp -- < 0)
         // state.gpr[1] = 0;
-        // if(check) print_info(&ref_r);
+        // print_info(&ref_r);
         if(!check_gregs(&ref_r)){
             print_info(&ref_r);
             is_diff = 1;
@@ -326,11 +326,10 @@ int main(int argc, char **argv){
     printf("after initialization\n");
     reset();
     init_csr();
-    uint32_t is_end = 0;
     if (setjmp (env) == 0) {
 #ifdef DIFFTEST
         check = 1;
-        while(!is_end && !is_diff){
+        while(!dut_end && !is_diff){
             difftest_step(1);
             if(inst_num % 10000000 == 0 && inst_num != 0){
                 disp_ipc();

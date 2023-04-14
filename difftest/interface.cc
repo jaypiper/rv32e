@@ -9,7 +9,7 @@ extern "C" void update_reg(int id,int val){
 }
 
 extern "C" void update_pc(int valid, int pc, int inst){
-    state.pc = (uint64_t)pc;
+    state.pc = (uint32_t)pc;
     state.inst = (uint32_t)inst;
     state.valid = valid;
 }
