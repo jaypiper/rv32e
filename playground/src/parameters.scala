@@ -409,3 +409,16 @@ object decode_config extends DeType with ALUOP with BrType with Insts with MemMo
         TRAP      -> List(EMPTY, alu_NOP, mode_NOP, false.B, NO_JMP)
     )
 }
+
+object axi_config{ 
+    val BURST_FIXED = 0.U(2.W) // address is the same for every transfer in the burst
+    val BURST_INCR  = 1.U(2.W) // increment value depends on the size of the transfer
+    val BURST_WRAP  = 2.U(2.W)
+
+    val RESP_OKAY   = 0.U(2.W)
+    val RESP_EXOKAY = 1.U(2.W)
+    val RESP_SLVERR = 2.U(2.W)
+    val RESP_DECERR = 3.U(2.W)
+
+    val DEFAULT_STRB    = 0xff.U
+}

@@ -81,11 +81,13 @@ class CtrlEx extends Bundle {
 
 class SimpleBus extends Bundle {
   val addr = Output(UInt(ADDR_WIDTH.W))
-  val rdata = Input(UInt(REG_WIDTH.W))
-  val wdata = Output(UInt(REG_WIDTH.W))
-  val wmask = Output(UInt(4.W))
+  val rdata = Input(UInt(64.W))
+  val wdata = Output(UInt(64.W))
+  val wmask = Output(UInt(8.W))
+  val wsize = Output(UInt(3.W))
   val wen = Output(Bool())
   val valid = Output(Bool())
+  val ready = Input(Bool())
   val respValid = Input(Bool())
 }
 
@@ -140,6 +142,7 @@ class MEM2WB extends Bundle {
   val nextPC = Output(UInt(REG_WIDTH.W))
   val wreg = Flipped(new WriteReg)
   val valid = Output(Bool())
+  val isMMIO = Output(Bool())
   def init() = this := 0.U.asTypeOf(this)
 }
 

@@ -20,6 +20,7 @@ typedef struct CPU_STATE{
     uint32_t priv;
     uint32_t inst;
     int valid;
+    int is_mmio;
 }CPU_state;
 
 extern "C" void flash_memcpy(uint8_t* src, size_t len);

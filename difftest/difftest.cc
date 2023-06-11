@@ -240,16 +240,16 @@ void difftest_step(uint32_t n){
     while(n --){
         dut_step(1);
         //ref执行一步
-        // if(state.is_mmio || state.rcsr_id == MIP_ID){
-        //     memcpy(ref_r.gpr, state.gpr, sizeof(state.gpr));
-        //     ref_r.pc = state.pc + ((state.inst&0x3) == 0x3 ? 4 : 2);
-        //     memcpy(ref_r.csr, state.csr, sizeof(state.csr));
-        //     difftest_regcpy(&ref_r, 0);
+        if(state.is_mmio){// || state.rcsr_id == MIP_ID){
+            memcpy(ref_r.gpr, state.gpr, sizeof(state.gpr));
+            ref_r.pc = state.pc + ((state.inst&0x3) == 0x3 ? 4 : 2);
+            // memcpy(ref_r.csr, state.csr, sizeof(state.csr));
+            difftest_regcpy(&ref_r, 0);
         // }else if(state.intr && (state.cause &(1ULL << 63)) != 0){
         //     ref_intr_exec(state.excep_pc, state.cause);
-        // }else{
+        }else{
             difftest_exec(1);
-        // }
+        }
         difftest_regcpy(&ref_r, 1);
         // if(tmp -- < 0)
         // state.gpr[1] = 0;
@@ -331,7 +331,7 @@ int main(int argc, char **argv){
         check = 1;
         while(!dut_end && !is_diff){
             difftest_step(1);
-            if(inst_num % 10000000 == 0 && inst_num != 0){
+            if(inst_num % 100000000 == 0 && inst_num != 0){
                 disp_ipc();
             }
             check_and_exit();
@@ -339,9 +339,10 @@ int main(int argc, char **argv){
 #else
         while(!dut_end){
             dut_step(1);
-            // if(inst_num % 10000000 == 0){
+            // if(inst_num % 100000000 == 0){
             //     disp_ipc();
             // }
+            check_and_exit();
         }
 #endif
     }else{

@@ -6,6 +6,7 @@ import io._
 import params.common._
 import params.decode_config._
 import params.csr_config._
+import params.axi_config._
 
 class UpdateRegs extends BlackBox with HasBlackBoxPath{
   val io = IO(new Bundle{
@@ -22,6 +23,7 @@ class UpdateInst extends BlackBox with HasBlackBoxPath{
         val valid   = Input(Bool())
         val pc      = Input(UInt(ADDR_WIDTH.W))
         val inst    = Input(UInt(INST_WIDTH.W))
+        val isMMIO  = Input(Bool())
     })
     addPath("playground/src/UpdateInst.v")
 }
@@ -218,34 +220,31 @@ class Fetch extends Module {
   val sIdle :: sWait :: Nil = Enum(2)
   val state = RegInit(sIdle)
   val prevFinish = RegInit(true.B)
+	val prevPc = RegInit(0.U(ADDR_WIDTH.W))
+	val hs_r = RegInit(false.B)
   when(io.instFinish) {
     prevFinish := true.B
   } .elsewhen(io.if2id.valid) {
     prevFinish := false.B
   }
-
-  io.simpleBus.addr := pc
+	when(io.simpleBus.valid & io.simpleBus.ready) {
+		hs_r := true.B
+		prevPc := pc
+	}.elsewhen(io.simpleBus.respValid) {
+		hs_r := false.B
+	}
+  io.simpleBus.addr := pc & (~0x7.U(ADDR_WIDTH.W))
   io.simpleBus.wdata := 0.U
   io.simpleBus.wmask := 0.U
   io.simpleBus.wen := false.B
-  io.simpleBus.valid := prevFinish
+  io.simpleBus.valid := prevFinish && !hs_r
+	io.simpleBus.wsize := 0.U
 
   when (io.instFinish) {
     pc := io.nextPC
   }
-  // switch(state) {
-  //   is(sIdle) {
-  //     when(io.simpleBus.valid && !io.simpleBus.respValid) {
-  //       state = sIdle
-  //     }
-  //   }
-  //   is(sWait) {
-  //     when(io.simpleBus.respValid) {
-  //       state := sIdle
-  //     }
-  //   }
-  // }
-  io.if2id.inst := io.simpleBus.rdata
+
+  io.if2id.inst := Mux(prevPc(2), io.simpleBus.rdata(63, 32), io.simpleBus.rdata(31, 0))
   io.if2id.pc := pc
   io.if2id.valid := io.simpleBus.respValid
 }
@@ -357,17 +356,21 @@ class Memory extends Module {
   val addr_r = RegInit(0.U(ADDR_WIDTH.W))
   val pc_r = RegInit(0.U(ADDR_WIDTH.W))
   val inst_r = RegInit(0.U(INST_WIDTH.W))
+	val wdata_r = RegInit(0.U(REG_WIDTH.W))
   switch(state) {
     is(sIdle) {
-      when(io.memIO.valid && !io.memIO.respValid) {
-        state := sWaitMem
+      when(io.id2mem.valid) {
         id_r := io.id2mem.dst_id
         mode_r := io.id2mem.memMode
         addr_r := io.id2mem.addr
         valid_r := true.B
         pc_r := io.id2mem.pc
         inst_r := io.id2mem.inst
+				wdata_r := io.id2mem.data
       }
+			when(io.memIO.ready && io.memIO.valid) {
+				state := sWaitMem
+			}
     }
     is(sWaitMem) {
       when(io.memIO.respValid) {
@@ -380,20 +383,22 @@ class Memory extends Module {
   val curMode = Mux(state === sIdle, io.id2mem.memMode, mode_r)
   val curAddr = Mux(state === sIdle, io.id2mem.addr, addr_r)
   val memFinish = ((io.id2mem.valid && (state === sIdle)) || (state === sWaitMem)) && io.memIO.respValid
-
-  io.memIO.addr := io.id2mem.addr & (~0x3.U(REG_WIDTH.W))
-  io.memIO.wdata := io.id2mem.data << Cat(io.id2mem.addr(1, 0), 0.U(3.W))
-  io.memIO.valid := io.id2mem.valid
-  io.memIO.wen :=  io.id2mem.memMode(3)
-  io.memIO.wmask := mask_by_width(io.id2mem.memMode(1,0)) << io.id2mem.addr(1, 0)
+  val isMMIO = curAddr === "ha00003f8".U
+  io.memIO.addr := Mux(valid_r, addr_r, io.id2mem.addr) & (~0x7.U(REG_WIDTH.W))
+  io.memIO.wdata := Mux(valid_r, wdata_r, io.id2mem.data) << Cat(Mux(valid_r, addr_r(2, 0), io.id2mem.addr(2,0)), 0.U(3.W))
+	io.memIO.valid := state === sIdle && (io.id2mem.valid || valid_r)
+  io.memIO.wen :=  Mux(valid_r, mode_r(3), io.id2mem.memMode(3))
+  io.memIO.wmask := mask_by_width(Mux(valid_r, mode_r(1,0), io.id2mem.memMode(1,0))) << Mux(valid_r, addr_r(2, 0), io.id2mem.addr(2,0))
+	io.memIO.wsize := mode_r(1,0)
 
   io.mem2wb.valid := memFinish
   io.mem2wb.wreg.id := Mux(state === sIdle, io.id2mem.dst_id, id_r)
-  io.mem2wb.wreg.data := rdata_by_mode(curMode, io.memIO.rdata >> Cat(curAddr(1,0), 0.U(3.W)))
+  io.mem2wb.wreg.data := rdata_by_mode(curMode, io.memIO.rdata >> Cat(curAddr(2,0), 0.U(3.W)))
   io.mem2wb.wreg.en := Mux(state === sIdle, io.id2mem.memMode(2), mode_r(2))
   io.mem2wb.pc := Mux(state === sIdle, io.id2mem.pc, pc_r)
   io.mem2wb.inst := Mux(state === sIdle, io.id2mem.inst, inst_r)
   io.mem2wb.nextPC := io.mem2wb.pc + 4.U
+  io.mem2wb.isMMIO := isMMIO
  }
 
 class WriteBack extends Module {
@@ -409,6 +414,7 @@ class WriteBack extends Module {
   prevFinish := io.instFinish
   val prevPC = RegNext(Mux(io.ex2wb.valid, io.ex2wb.pc, io.mem2wb.pc))
   val prevInst = RegNext(Mux(io.ex2wb.valid, io.ex2wb.inst, io.mem2wb.inst))
+  val prevMMIO = RegNext(io.mem2wb.isMMIO)
 
   io.instFinish := io.ex2wb.valid || io.mem2wb.valid
   io.wreg.id := Mux(io.ex2wb.valid, io.ex2wb.wreg.id, io.mem2wb.wreg.id)
@@ -425,12 +431,12 @@ class WriteBack extends Module {
   updateInst.io.pc := prevPC
   updateInst.io.inst := prevInst
   updateInst.io.clock := clock
+  updateInst.io.isMMIO := prevMMIO
 }
 
 class rv32e extends Module {
   val io = IO(new Bundle {
-    val master1 = new SimpleBus
-    val master2 = new SimpleBus
+    val out = new AXIIO
   })
   dontTouch(io)
 
@@ -441,10 +447,12 @@ class rv32e extends Module {
   val writeback = Module(new WriteBack)
   val regs = Module(new Regs)
   val csrs = Module(new Csrs)
+	val axiBridge = Module(new AXIBridge)
+	val crossbar = Module(new SimpleBusCrossbar)
   
   fetch.io.nextPC <> writeback.io.nextPC
   fetch.io.instFinish <> writeback.io.instFinish
-  fetch.io.simpleBus <> io.master1
+  fetch.io.simpleBus <> crossbar.io.in1
   fetch.io.if2id <> decode.io.if2id
 
   decode.io.id2ex <> execute.io.id2ex
@@ -456,9 +464,151 @@ class rv32e extends Module {
   execute.io.ex2wb <> writeback.io.ex2wb
 
   memory.io.mem2wb <> writeback.io.mem2wb
-  memory.io.memIO <> io.master2
+  memory.io.memIO <> crossbar.io.in2
   
   writeback.io.wreg <> regs.io.dst
   writeback.io.wreg <> csrs.io.rd
+	crossbar.io.out <> axiBridge.io.in
+	axiBridge.io.out <> io.out
 }
 
+class AXIBridge extends Module {
+	val io = IO(new Bundle {
+		val in = Flipped(new SimpleBus)
+		val out = new AXIIO
+	})
+	val sIdle :: sWaddr :: sWdata :: sWresp :: sRaddr :: sRdata :: sFinish :: Nil = Enum(7)
+	val state = RegInit(sIdle)
+
+	val addr = RegInit(0.U(ADDR_WIDTH.W))
+	val wdata = RegInit(0.U(64.W))
+	val wmask = RegInit(0.U(8.W))
+	val wsize = RegInit(0.U(3.W))
+
+	val waddrEn = RegInit(false.B)
+	val wdataEn = RegInit(false.B)
+	val wstrb   = RegInit(0.U(8.W))
+
+	val raddrEn = RegInit(false.B)
+	val rdataEn = RegInit(false.B)
+
+	io.in.ready := false.B
+	io.in.rdata := 0.U
+	io.in.respValid := false.B
+
+	switch(state) {
+		is(sIdle) {
+			when(io.in.valid) {
+				io.in.ready := true.B
+				addr := io.in.addr
+				wdata := io.in.wdata
+				wmask := io.in.wmask
+				wsize := io.in.wsize
+				when(io.in.wen) {
+					state := sWaddr
+					waddrEn := true.B
+				}.otherwise {
+					state := sRaddr
+					raddrEn := true.B
+				}
+			}
+		}
+		is(sWaddr) {
+			when(waddrEn && io.out.awready) {
+				waddrEn := false.B
+				state := sWdata
+				wdataEn := true.B
+			}
+		}
+		is(sWdata) {
+			when(wdataEn && io.out.wready) {
+				state := sIdle
+				wdataEn := false.B
+				io.in.respValid := true.B
+			}
+		}
+		is(sRaddr) {
+			when(raddrEn && io.out.arready) {
+				raddrEn := false.B
+				state := sRdata
+				rdataEn := true.B
+			}
+		}
+		is(sRdata) {
+			when(rdataEn && io.out.rvalid) {
+				io.in.rdata := io.out.rdata
+				io.in.respValid := true.B
+				state := sIdle
+			}
+		}
+	}
+	io.out.awvalid 	:= waddrEn
+	io.out.awaddr 	:= addr
+	io.out.awid 		:= 0.U
+	io.out.awlen		:= 0.U
+	io.out.awsize   := wsize
+	io.out.awburst	:= BURST_INCR
+	io.out.wvalid 	:= wdataEn
+	io.out.wdata		:= wdata
+	io.out.wstrb		:= wmask
+	io.out.wlast		:= true.B
+	io.out.bready		:= true.B
+	io.out.arvalid	:= raddrEn
+	io.out.araddr		:= addr
+	io.out.arid			:= 0.U
+	io.out.arlen 		:= 0.U
+	io.out.arsize		:= 0.U
+	io.out.arburst	:= BURST_INCR
+	io.out.rready		:= rdataEn
+}
+
+class SimpleBusCrossbar extends Module {
+    val io = IO(new Bundle {
+        val in1 = Flipped(new SimpleBus)
+        val in2 = Flipped(new SimpleBus)
+        val out = new SimpleBus
+    })
+    val sIdle :: sIn1 :: sIn2 :: Nil = Enum(3)
+    val state = RegInit(sIdle)
+
+		io.in1.ready := false.B
+		io.in1.rdata := 0.U
+		io.in1.respValid := false.B
+		io.in2.ready := false.B
+		io.in2.rdata := 0.U
+		io.in2.respValid := false.B
+		io.out.addr := 0.U
+		io.out.wdata := 0.U
+		io.out.wmask := 0.U
+		io.out.wsize := 0.U
+		io.out.wen := 0.U
+		io.out.valid := 0.U
+
+    switch(state) {
+			is(sIdle) {
+				when(io.in1.valid) {
+					io.in1 <> io.out
+					when(io.in1.ready) {
+						state := sIn1
+					}
+				}.elsewhen(io.in2.valid) {
+					io.in2 <> io.out
+					when(io.in2.ready) {
+						state := sIn2
+					}
+				}
+			}
+			is(sIn1) {
+				io.in1 <> io.out
+				when(io.out.respValid) {
+					state := sIdle
+				}
+			}
+			is(sIn2) {
+				io.in2 <> io.out
+				when(io.out.respValid) {
+					state := sIdle
+				}
+			}
+		}
+}
